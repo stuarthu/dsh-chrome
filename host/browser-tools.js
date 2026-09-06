@@ -42,6 +42,19 @@ const deny = (tool, intent) =>
   `${gateDoc(intent)}. Then try again, or tell me not to run it. ` +
   `已拦截：请在消息里写明浏览器意图后重试。`;
 
+// The gate reads the session's event log. dsh 0.1.3 (deepseek-harness commit
+// 5660f44d29, "perf(session): separate indexed and snapshot log reads")
+// removed the `Session.events` getter in favour of `snapshotEvents()`, so on
+// those hosts the old property read yielded undefined, `currentTurnUserText`
+// found no `turn/start`, and every gated tool was refused on every turn no
+// matter what the user said. Prefer the method; keep the property read for
+// hosts that predate it. Returning undefined still fails closed downstream.
+const sessionEvents = (exec) => {
+  const session = exec.agent?.session;
+  if (!session) return undefined;
+  return typeof session.snapshotEvents === "function" ? session.snapshotEvents() : session.events;
+};
+
 // One wording for the never-retry rule, used by both the system prompt and the
 // browser_click transform so the agent can't be told two different things about
 // a non-idempotent action.
@@ -74,7 +87,7 @@ export function apply(ctx, config) {
         },
         isConcurrencySafe: () => true,
         async execute(args, exec) {
-          if (intent && !isUnlocked(exec.agent?.session?.events, intent)) return deny(name, intent);
+          if (intent && !isUnlocked(sessionEvents(exec), intent)) return deny(name, intent);
           let result = await bridge.call(action, args, 90000);
           if (transform) result = transform(result);
           return typeof result === "string" ? result : JSON.stringify(result);
