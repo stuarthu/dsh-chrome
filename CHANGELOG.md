@@ -3,6 +3,22 @@
 All notable changes to `dsh-chrome` are documented here. This project follows
 [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- **Every intent-gated tool was refused on dsh 0.1.3 and later.** The gate
+  read the session log through `exec.agent.session.events`, a getter
+  deepseek-harness removed on 2026-08-28 (commit `5660f44d29`, "perf(session):
+  separate indexed and snapshot log reads") in favour of
+  `session.snapshotEvents()`. The property read became `undefined`, the
+  fail-closed extractor found no `turn/start`, and `browser_navigate` /
+  `browser_click` / `browser_open_tab` / `browser_start_capture` denied every
+  call — the refusal quoted the unlocking words even when the user's message
+  already contained them. `browser-tools.js` now calls `snapshotEvents()` when
+  the host provides it and falls back to the `events` property on older hosts;
+  a host offering neither still fails closed.
+
 ## 0.1.3
 
 Seven review rounds over the 0.1.2 follow-up work. Bullets describe the end
