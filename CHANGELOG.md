@@ -3,6 +3,34 @@
 All notable changes to `dsh-chrome` are documented here. This project follows
 [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+dsh 0.2 host-API compatibility. Both items were found on dsh 0.2.0-rc.2; one
+disabled a whole feature silently, the other failed the running turn outright.
+
+### Fixed
+
+- **Every intent-gated tool was denied, whatever the user said.** The gate read
+  the turn's events from `exec.agent.session.events`, but dsh 0.2 removed that
+  property — the event log is read through `session.snapshotEvents()` (what
+  in-tree tools such as `dsh-tool-goal` use). The resulting `undefined` made
+  `currentTurnUserText` return `""`, so the fail-closed gate refused `navigate`
+  / `click` / `open_tab` / `start_capture` in every turn, quoting keywords the
+  user had in fact typed. Reading now goes through `sessionEvents()` in
+  `host/intent-gate.js`, which accepts either host generation and still fails
+  closed when neither exists.
+- **The injected "current page" message failed session-format admission and
+  killed the turn.** `page-injector` still built the retired V3 wrapper
+  `source: { kind: "plugin", plugin: "dsh-chrome" }`. Session format v4 rewrites
+  that shape only while migrating an existing log; on a new message it rejects
+  it with `format v4 message requires a producer-owned source kind`, and the
+  throw surfaced as a failed turn (reported as "本轮运行失败 …"), so every tab
+  switch or navigation that pushed a page broke the turn it happened in.
+  Injection now uses the producer-owned kind `plugin:dsh-chrome` — the shape
+  `producerKind()` itself assigns to a third-party plugin — and drops the
+  redundant `plugin` field. `kind` stays distinct from `"user"`, so injected
+  page text still cannot unlock the browser gates.
+
 ## 0.1.3
 
 Seven review rounds over the 0.1.2 follow-up work. Bullets describe the end
