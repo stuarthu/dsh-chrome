@@ -3,6 +3,7 @@
 // 本模块拥有门禁的全部组成部分：
 //   - INTENT_PATTERN / CAPTURE_PATTERN   两套关键词正则
 //   - textOf / currentTurnUserText       本轮用户真实消息的文本提取
+//   - sessionEvents                      宿主会话对象 → 事件数组（跨 dsh 版本）
 //   - GATES / requireGate / isUnlocked   种类登记表与最终判定
 //   - INTENT_KEYWORDS_DOC / CAPTURE_KEYWORDS_DOC / gateDoc(kind)
 //       面向用户的关键词说明——系统提示词直接引用前两者，工具被拦截时的
@@ -58,9 +59,28 @@ export function textOf(event) {
 }
 
 /**
+ * 宿主会话对象 → 事件数组。dsh 0.2 起 `session.events` 属性被移除，事件改为
+ * 通过 `session.snapshotEvents()` 读取（dsh 自带的工具，如 dsh-tool-goal，就是
+ * 这么用的）；更早的版本反过来只有属性。两种形状都认，都取不到就返回
+ * undefined，由 isUnlocked 失败关闭——绝不在这里「兜底放行」。
+ *
+ * 放在本模块而不是调用方：门禁的输入形状与判定一样，只该有一处定义，否则
+ * browser-tools 与诊断脚本又会各写一份并漂移。本函数不依赖任何
+ * @deepseek-ai/* 包，因此 tools/ 里的脚本能直接跑。
+ *
+ * @param session - exec.agent.session，或任何同形状对象
+ * @returns 事件数组；两种宿主形状都不认识时返回 undefined
+ */
+export function sessionEvents(session) {
+  if (!session) return undefined;
+  if (typeof session.snapshotEvents === "function") return session.snapshotEvents();
+  return session.events;
+}
+
+/**
  * 本轮中所有「用户真实消息」（source.kind === "user"）的文本。
- * 注入的“当前页面”消息 source.kind 是 "plugin"，不计入，因此页面内容
- * 无法解锁浏览器动作。
+ * 注入的“当前页面”消息 source.kind 是生产者自有的 "plugin:dsh-chrome"，
+ * 不等于 "user"，不计入，因此页面内容无法解锁浏览器动作。
  */
 export function currentTurnUserText(events) {
   if (!Array.isArray(events)) return "";

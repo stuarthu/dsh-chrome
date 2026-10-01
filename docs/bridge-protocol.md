@@ -90,6 +90,9 @@ dsh 模块图变化（装/删插件行）时向所有已连接的扩展广播，
   关键词”才放行的只有四个：`navigate`/`click`/`open_tab` 看
   `INTENT_PATTERN`，`start_capture` 看另一套 `CAPTURE_PATTERN`；
   `stop_capture` 与 `capture_requests` 不设门槛。两套关键词都定义在
-  `host/intent-gate.js`。
-- `host/page-injector.js`：把 `page` 推送写成一条 `source.kind === "plugin"`
-  的"当前页面"消息，注入最近活跃会话；这类消息不能解锁浏览器动作。
+  `host/intent-gate.js`；门禁的输入由同模块的 `sessionEvents()` 取——dsh 0.2
+  起事件在 `session.snapshotEvents()`，不再有 `session.events` 属性。
+- `host/page-injector.js`：把 `page` 推送写成一条 `source.kind ===
+  "plugin:dsh-chrome"` 的"当前页面"消息（生产者自有形状；会话格式 v4 不再
+  接受 V3 的 `{ kind: "plugin", plugin }` 包裹），注入最近活跃会话；这类消息
+  不能解锁浏览器动作。

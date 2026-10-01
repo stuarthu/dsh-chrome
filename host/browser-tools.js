@@ -12,9 +12,14 @@
 //   user message matching that gate's keywords. This module names the gate by
 //   kind ("browser"/"capture") and lets host/intent-gate.js own the patterns
 //   and the verdict (isUnlocked); a blocked tool's refusal quotes THAT gate's
-//   words via gateDoc(kind). Injected "current page" messages have
-//   source.kind === "plugin" and unlock nothing, so a stray instruction hidden
-//   in a web page cannot drive the browser (best-effort, not a hard guarantee).
+//   words via gateDoc(kind). The gate's input comes from sessionEvents() in
+//   that module, which spans both dsh host generations: dsh 0.2 replaced the
+//   `session.events` property with `session.snapshotEvents()`, and reading the
+//   old property yields undefined — which the gate correctly treats as "deny",
+//   so it silently disabled every gated tool. Injected "current page" messages
+//   carry a producer-owned source kind ("plugin:dsh-chrome") and unlock
+//   nothing, so a stray instruction hidden in a web page cannot drive the
+//   browser (best-effort, not a hard guarantee).
 //
 // This module is also where extension results become agent-facing English:
 //   - browser_capture_requests runs redaction (config `redactCredentials`,
@@ -28,7 +33,7 @@ import { redactCaptureResult } from "./redact.js";
 // The whole intent gate (keyword patterns + turn-text extraction) lives in one
 // dependency-free module so tools/verify-intent.cjs replays the exact
 // production logic instead of a hand-copied duplicate.
-import { isUnlocked, gateDoc, INTENT_KEYWORDS_DOC, CAPTURE_KEYWORDS_DOC } from "./intent-gate.js";
+import { isUnlocked, sessionEvents, gateDoc, INTENT_KEYWORDS_DOC, CAPTURE_KEYWORDS_DOC } from "./intent-gate.js";
 
 export const name = "dsh-chrome-browser-tools";
 export const inject = ["tools", "dshAgentBridge", "systemPrompt"];
@@ -74,7 +79,11 @@ export function apply(ctx, config) {
         },
         isConcurrencySafe: () => true,
         async execute(args, exec) {
-          if (intent && !isUnlocked(exec.agent?.session?.events, intent)) return deny(name, intent);
+          // Never read `session.events` directly: dsh 0.2 removed that property,
+          // and an undefined event list makes the fail-closed gate deny every
+          // gated call no matter what the user wrote. sessionEvents() accepts
+          // either host generation and still denies when it recognises neither.
+          if (intent && !isUnlocked(sessionEvents(exec.agent?.session), intent)) return deny(name, intent);
           let result = await bridge.call(action, args, 90000);
           if (transform) result = transform(result);
           return typeof result === "string" ? result : JSON.stringify(result);
